@@ -42,9 +42,17 @@ The filter level may end with a "+N" or "-N" indicating an offset from
 the named level, so C<debug-1> is equivalent to C<trace> and C<debug+1>
 is equivalent to C<info>.
 
+=head1 ENV{TAP_LOG_ORIGIN}
+
+Set this variable to 1 to show which category the message came from,
+or 2 to see the file and line number it came from, or 3 to see both.
+
 =cut
 
 our $global_filter_level;
+our $show_category;
+our $show_file_line;
+our $show_file_fullname;
 our %category_filter_level;
 our %level_map;
 
@@ -97,6 +105,8 @@ in the normal way.
 
 sub dumper { $_[0]{dumper} || \&_default_dumper }
 
+sub category { $_[0]{category} }
+
 =head1 METHODS
 
 =head2 new
@@ -131,6 +141,17 @@ sub write_msg {
 	my ($self, $level_name, $str)= @_;
 	chomp $str;
 	$str =~ s/\n/\n#  /sg;
+	if ($show_category) {
+		$str .= ' (' . $self->category . ')';
+	}
+	if ($show_file_line) {
+		my $i= 0;
+		++$i while caller($i) =~ '^Log::Any';
+		my (undef, $file, $line)= caller($i);
+		$file =~ s|.*/lib/||
+			unless $show_file_fullname;
+		$str .= ' (' . $file . ':' . $line . ')';
+	}
 	if ($level_map{$level_name} >= $level_map{warning}) {
 		print STDERR ($level_name eq 'info'? '# ' : "# $level_name: "), $str, "\n";
 	} else {
@@ -265,6 +286,13 @@ BEGIN {
 				$global_filter_level= &_coerce_filter_level($_);
 			}
 		}
+	}
+	
+	# Apply TAP_LOG_ORIGIN
+	if ($ENV{TAP_LOG_ORIGIN}) {
+		$show_category= $ENV{TAP_LOG_ORIGIN} & 1;
+		$show_file_line= $ENV{TAP_LOG_ORIGIN} & 2;
+		$show_file_fullname= $show_file_line;
 	}
 }
 
