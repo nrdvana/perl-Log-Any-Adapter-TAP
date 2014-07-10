@@ -45,6 +45,8 @@ my @tests= (
 	[ 'info',    'test-info',    "# test-info\n", '' ],
 	[ 'debug',   'test-debug',   '', '' ],
 	[ 'trace',   'test-trace',   '', '' ],
+	[ 'info',    "line 1\nline 2", "# line 1\n#   line 2\n", '' ],
+	[ 'info',    "line 1\nline 2\n", "# line 1\n#   line 2\n", '' ],
 );
 test_log_method(@$_) for @tests;
 

@@ -140,7 +140,7 @@ differently, or write to different file handles.
 sub write_msg {
 	my ($self, $level_name, $str)= @_;
 	chomp $str;
-	$str =~ s/\n/\n#  /sg;
+	$str =~ s/\n/\n#   /sg;
 	if ($show_category) {
 		$str .= ' (' . $self->category . ')';
 	}
