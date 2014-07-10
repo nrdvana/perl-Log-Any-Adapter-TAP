@@ -219,11 +219,13 @@ BEGIN {
 				$self->write_msg($method, sprintf((shift), map { !defined $_? '<undef>' : !ref $_? $_ : $self->dumper->($_) } @_));
 			};
 
+		# Install methods in base package
 		no strict 'refs';
 		*{__PACKAGE__ . "::$method"}= $impl;
 		*{__PACKAGE__ . "::${method}f"}= $printfn;
 		*{__PACKAGE__ . "::is_$method"}= sub { 1 };
 		
+		# Suppress methods in all higher filtering level packages
 		foreach ($level+1 .. 5) {
 			*{__PACKAGE__ . "::Lev${_}::$method"}= sub {};
 			*{__PACKAGE__ . "::Lev${_}::${method}f"}= sub {};
@@ -234,13 +236,17 @@ BEGIN {
 	# Now create any alias that isn't handled
 	my %aliases= Log::Any->log_level_aliases;
 	for my $method (grep { !$seen{$_}++ } keys %aliases) {
-		no strict 'refs';
 		my $level= $level_map{$method};
 		$level= $level_map{$method}= $level_map{$aliases{$method}}
 			unless defined $level;
+
+		# Install methods in base package
+		no strict 'refs';
 		*{__PACKAGE__ . "::$method"}=    *{__PACKAGE__ . "::$aliases{$method}"};
 		*{__PACKAGE__ . "::${method}f"}= *{__PACKAGE__ . "::$aliases{$method}f"};
 		*{__PACKAGE__ . "::is_$method"}= *{__PACKAGE__ . "::is_$aliases{$method}"};
+
+		# Suppress methods in all higher filtering level packages
 		foreach ($level+1 .. 5) {
 			*{__PACKAGE__ . "::Lev${_}::$method"}= sub {};
 			*{__PACKAGE__ . "::Lev${_}::${method}f"}= sub {};
