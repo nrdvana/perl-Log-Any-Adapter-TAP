@@ -1,0 +1,9 @@
+Version 0.1
+ - Basic support for all logging methods, prefixing all output with
+   the canonical name of the log level other than 'info', and writing
+   each line with a comment prefix.
+ - Warning and higher go to STDERR like Test::More::diag, and Notice
+   and below go to STDOUT like Test::More::note
+ - Default filter is debug and below.
+ - Support for custom dumpers, used for non-scalars passed to 'debug'
+   or 'trace' or any of the formatting '*f()' functions.
