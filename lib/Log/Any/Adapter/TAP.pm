@@ -47,97 +47,6 @@ is equivalent to C<info>.
 our $global_filter_level;
 our %category_filter_level;
 our %level_map;
-BEGIN {
-	$global_filter_level= 0;
-	%level_map= (
-		trace    => -1,
-		debug    =>  0,
-		info     =>  1,
-		notice   =>  2,
-		warning  =>  3,
-		error    =>  4,
-		critical =>  5,
-		fatal    =>  5,
-	);
-
-	# Apply TAP_LOG_FILTER settings
-	if ($ENV{TAP_LOG_FILTER}) {
-		for (split /,/, $ENV{TAP_LOG_FILTER}) {
-			if (index($_, '=') == -1) {
-				my ($pkg, $level)= split /=/, $_;
-				$category_filter_level{$pkg}= _coerce_filter_level($level);
-			}
-			else {
-				$global_filter_level= _coerce_filter_level($_);
-			}
-		}
-	}
-	
-	# create filter-level packages
-	# this is an optimization for minimal overhead of disabled log levels
-	for (0..5) {
-		no strict 'refs';
-		push @{__PACKAGE__ . "::Lev${_}::ISA"}, __PACKAGE__;
-	}
-	
-	my $prev_level= 0;
-	# We implement the stock methods, but also 'fatal' because in my mind, fatal is not
-	# an alias for 'critical' and I want to see a prefix of "fatal" on messages.
-	my %seen;
-	foreach my $method ( grep { !$seen{$_}++ } Log::Any->logging_methods(), 'fatal' ) {
-		my $level= $level_map{$method};
-		if (defined $level) {
-			$prev_level= $level;
-		} else {
-			# If we get an unexpected method name, assume same numeric level as previous.
-			# I'm attempting to be future-proof, here.
-			$level= $prev_level;
-			$level_map{$method}= $prev_level;
-		}
-		my $impl= ($method ne 'debug' && $method ne 'trace')
-			# Standard logging
-			? sub {
-				(shift)->write_msg($method, join('', map { !defined $_? '<undef>' : $_ } @_));
-			}
-			# Debug and trace logging
-			: sub {
-				my $self= shift;
-				eval { $self->write_msg($method, join('', map { !defined $_? '<undef>' : !ref $_? $_ : $self->dumper->($_) } @_)); };
-			};
-		my $printfn=
-			sub {
-				my $self= shift;
-				$self->write_msg($method, sprintf((shift), map { !defined $_? '<undef>' : !ref $_? $_ : $self->dumper->($_) } @_));
-			};
-
-		no strict 'refs';
-		*{__PACKAGE__ . "::$method"}= $impl;
-		*{__PACKAGE__ . "::${method}f"}= $printfn;
-		*{__PACKAGE__ . "::is_$method"}= sub { 1 };
-		
-		foreach ($level+1 .. 5) {
-			*{__PACKAGE__ . "::Lev${_}::$method"}= sub {};
-			*{__PACKAGE__ . "::Lev${_}::${method}f"}= sub {};
-			*{__PACKAGE__ . "::Lev${_}::is_$method"}= sub { 0 }
-		}
-	}
-
-	# Now create any alias that isn't handled
-	my %aliases= Log::Any->log_level_aliases;
-	for my $method (grep { !$seen{$_}++ } keys %aliases) {
-		no strict 'refs';
-		my $level= $level_map{$_};
-		$level= $level_map{$aliases{$_}} unless defined $level;
-		*{__PACKAGE__ . "::$method"}=    *{__PACKAGE__ . "::$aliases{$method}"};
-		*{__PACKAGE__ . "::${method}f"}= *{__PACKAGE__ . "::$aliases{$method}f"};
-		*{__PACKAGE__ . "::is_$method"}= *{__PACKAGE__ . "::is_$aliases{$method}"};
-		foreach ($level+1 .. 5) {
-			*{__PACKAGE__ . "::Lev${_}::$method"}= sub {};
-			*{__PACKAGE__ . "::Lev${_}::${method}f"}= sub {};
-			*{__PACKAGE__ . "::Lev${_}::is_$method"}= sub { 0 }
-		}
-	}
-}
 
 =head1 ATTRIBUTES
 
@@ -258,6 +167,99 @@ sub _coerce_filter_level {
 		: exists $level_map{$val}? $level_map{$val}
 		: ($val =~ /^([A-Za-z]+)[-+]([0-9]+)$/) && defined $level_map{lc $1}? $level_map{lc $1} - $2
 		: croak "unknown log level '$val'";
+}
+
+BEGIN {
+	$global_filter_level= 0;
+	%level_map= (
+		trace    => -1,
+		debug    =>  0,
+		info     =>  1,
+		notice   =>  2,
+		warning  =>  3,
+		error    =>  4,
+		critical =>  5,
+		fatal    =>  5,
+	);
+
+	# create filter-level packages
+	# this is an optimization for minimal overhead of disabled log levels
+	for (0..5) {
+		no strict 'refs';
+		push @{__PACKAGE__ . "::Lev${_}::ISA"}, __PACKAGE__;
+	}
+	
+	my $prev_level= 0;
+	# We implement the stock methods, but also 'fatal' because in my mind, fatal is not
+	# an alias for 'critical' and I want to see a prefix of "fatal" on messages.
+	my %seen;
+	foreach my $method ( grep { !$seen{$_}++ } Log::Any->logging_methods(), 'fatal' ) {
+		my $level= $level_map{$method};
+		if (defined $level) {
+			$prev_level= $level;
+		} else {
+			# If we get an unexpected method name, assume same numeric level as previous.
+			# I'm attempting to be future-proof, here.
+			$level= $prev_level;
+			$level_map{$method}= $prev_level;
+		}
+		my $impl= ($method ne 'debug' && $method ne 'trace')
+			# Standard logging
+			? sub {
+				(shift)->write_msg($method, join('', map { !defined $_? '<undef>' : $_ } @_));
+			}
+			# Debug and trace logging
+			: sub {
+				my $self= shift;
+				eval { $self->write_msg($method, join('', map { !defined $_? '<undef>' : !ref $_? $_ : $self->dumper->($_) } @_)); };
+			};
+		my $printfn=
+			sub {
+				my $self= shift;
+				$self->write_msg($method, sprintf((shift), map { !defined $_? '<undef>' : !ref $_? $_ : $self->dumper->($_) } @_));
+			};
+
+		no strict 'refs';
+		*{__PACKAGE__ . "::$method"}= $impl;
+		*{__PACKAGE__ . "::${method}f"}= $printfn;
+		*{__PACKAGE__ . "::is_$method"}= sub { 1 };
+		
+		foreach ($level+1 .. 5) {
+			*{__PACKAGE__ . "::Lev${_}::$method"}= sub {};
+			*{__PACKAGE__ . "::Lev${_}::${method}f"}= sub {};
+			*{__PACKAGE__ . "::Lev${_}::is_$method"}= sub { 0 }
+		}
+	}
+
+	# Now create any alias that isn't handled
+	my %aliases= Log::Any->log_level_aliases;
+	for my $method (grep { !$seen{$_}++ } keys %aliases) {
+		no strict 'refs';
+		my $level= $level_map{$method};
+		$level= $level_map{$method}= $level_map{$aliases{$method}}
+			unless defined $level;
+		*{__PACKAGE__ . "::$method"}=    *{__PACKAGE__ . "::$aliases{$method}"};
+		*{__PACKAGE__ . "::${method}f"}= *{__PACKAGE__ . "::$aliases{$method}f"};
+		*{__PACKAGE__ . "::is_$method"}= *{__PACKAGE__ . "::is_$aliases{$method}"};
+		foreach ($level+1 .. 5) {
+			*{__PACKAGE__ . "::Lev${_}::$method"}= sub {};
+			*{__PACKAGE__ . "::Lev${_}::${method}f"}= sub {};
+			*{__PACKAGE__ . "::Lev${_}::is_$method"}= sub { 0 }
+		}
+	}
+	
+	# Apply TAP_LOG_FILTER settings
+	if ($ENV{TAP_LOG_FILTER}) {
+		for (split /,/, $ENV{TAP_LOG_FILTER}) {
+			if (index($_, '=') > -1) {
+				my ($pkg, $level)= split /=/, $_;
+				$category_filter_level{$pkg}= &_coerce_filter_level($level);
+			}
+			else {
+				$global_filter_level= &_coerce_filter_level($_);
+			}
+		}
+	}
 }
 
 1;
