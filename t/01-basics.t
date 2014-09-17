@@ -106,4 +106,20 @@ Log::Any::Adapter->set('TAP', filter => undef);
 
 test_log_method(@$_) for @tests;
 
+note "filter level 'all'";
+Log::Any::Adapter->set('TAP', filter => 'all');
+@tests= (
+	# method, message, pattern
+	[ 'emergency', 'test-emerg',   '', '' ],
+	[ 'critical',  'test-crit',    '', '' ],
+	[ 'fatal',     'test-fatal',   '', '' ],
+	[ 'error',     'test-error',   '', '' ],
+	[ 'warning',   'test-warning', '', '' ],
+	[ 'notice',    'test-notice',  '', '' ],
+	[ 'info',      'test-info',    '', '' ],
+	[ 'debug',     'test-debug',   '', '' ],
+	[ 'trace',     'test-trace',   '', '' ],
+);
+test_log_method(@$_) for @tests;
+
 done_testing;

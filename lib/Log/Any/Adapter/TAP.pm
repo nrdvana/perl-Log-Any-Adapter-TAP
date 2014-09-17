@@ -69,6 +69,7 @@ our %level_map;              # mapping from level name to numeric level
 sub _coerce_filter_level {
 	my $val= shift;
 	return (!defined $val || $val eq 'none')? $level_map{trace}-1
+		: ($val eq 'all')? $level_map{emergency}
 		: exists $level_map{$val}? $level_map{$val}
 		: ($val =~ /^([A-Za-z]+)[-+]([0-9]+)$/) && defined $level_map{lc $1}? $level_map{lc $1} - $2
 		: croak "unknown log level '$val'";
@@ -318,7 +319,7 @@ sub _build_filtered_subclasses {
 		for values %level_map;
 	
 	# Create packages, inheriting from $class
-	for (0..$max_level) {
+	for (0..$max_level+1) {
 		no strict 'refs';
 		push @{"${class}::Lev${_}::ISA"}, $class;
 	}
@@ -326,7 +327,7 @@ sub _build_filtered_subclasses {
 	for my $method (keys %level_map) {
 		my $level= $level_map{$method};
 		# Suppress methods in all higher filtering level packages
-		for ($level+1 .. $max_level) {
+		for ($level+1 .. $max_level+1) {
 			no strict 'refs';
 			*{"${class}::Lev${_}::$method"}= sub {};
 			*{"${class}::Lev${_}::${method}f"}= sub {};
