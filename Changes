@@ -2,9 +2,12 @@ Version 0.2.0
  - Trap exceptions in debugf and tracef
  - Trapped exceptions in debug* trace* are now reported using ->warn
  - New filter level 'all' suppresses all messages
+ - Filter levels are now stored in symbolic form, for useful inspection by
+   end-users
+ - Invalid filter levels from environment variables no longer throw exceptions
+   (only warn).  Filters from constructor args still do.
  - Fixed bug in filter="level+N" notation
  - Print helpful TAP comment about available environment variables on startup
- - Invalid filter levels no longer throw exceptions (only warn)
  - Support for all log levels, rather than artifical cap at critical/fatal
  - Better support for subclassing (BEGIN block broken into reusable functions)
  - Publish default_dumper method instead of the _default_dumper function
