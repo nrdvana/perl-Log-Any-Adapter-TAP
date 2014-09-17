@@ -71,7 +71,7 @@ sub _coerce_filter_level {
 	return (!defined $val || $val eq 'none')? $level_map{trace}-1
 		: ($val eq 'all')? $level_map{emergency}
 		: exists $level_map{$val}? $level_map{$val}
-		: ($val =~ /^([A-Za-z]+)[-+]([0-9]+)$/) && defined $level_map{lc $1}? $level_map{lc $1} - $2
+		: ($val =~ /^([A-Za-z]+)([-+][0-9]+)$/) && defined $level_map{lc $1}? $level_map{lc $1} + $2
 		: croak "unknown log level '$val'";
 }
 
@@ -112,10 +112,12 @@ BEGIN {
 		for (split /,/, $ENV{TAP_LOG_FILTER}) {
 			if (index($_, '=') > -1) {
 				my ($pkg, $level)= split /=/, $_;
-				$category_filter_level{$pkg}= &_coerce_filter_level($level);
+				eval { $category_filter_level{$pkg}= _coerce_filter_level($level); 1; }
+					or warn "$@";
 			}
 			else {
-				$global_filter_level= &_coerce_filter_level($_);
+				eval { $global_filter_level= _coerce_filter_level($_); 1; }
+					or warn "$@";
 			}
 		}
 	}
@@ -193,14 +195,16 @@ See L<Log::Any::Adapter::Base/new>.  Accepts the above attributes.
 
 sub init {
 	my $self= shift;
-	$self->{filter}= exists $self->{filter}? _coerce_filter_level($self->{filter})
+	my $level= exists $self->{filter}? _coerce_filter_level($self->{filter})
 		: defined $category_filter_level{$self->{category}}? $category_filter_level{$self->{category}}
 		: $global_filter_level;
+	$level= $level_map{emergency} if $level > $level_map{emergency};
 	# Rebless to a "level filter" package, which is a subclass of this one
 	# but with some methods replaced by empty subs.
 	# If log level is negative (trace), we show all messages, so no need to rebless.
-	bless $self, ref($self).'::Lev'.($self->{filter}+1)
-		if $self->{filter} >= -1;
+	my $pkg_id= $level+1;
+	bless $self, ref($self)."::Lev$pkg_id"
+		if $pkg_id >= 0;
 	
 	# As a courtesy to people running "prove -v", we show a quick usage for env
 	# vars that affect logging output.  This can be suppressed by either

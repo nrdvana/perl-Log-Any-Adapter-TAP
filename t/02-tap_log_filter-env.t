@@ -8,7 +8,7 @@ use Log::Any;
 $SIG{__DIE__}= $SIG{__WARN__}= sub { diag @_; };
 
 $ENV{TAP_LOG_FILTER}= 'warn,Foo=trace,Bar=debug';
-use_ok( 'Log::Any::Adapter', 'TAP' ) || BAIL_OUT;
+use_ok( 'Log::Any::Adapter', 'TAP' ) || die;
 
 my $buf;
 
