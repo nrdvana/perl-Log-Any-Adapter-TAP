@@ -181,8 +181,9 @@ The dumper is only used for the C<${level}f(...)> formatting functions,
 and for log levels C<debug> and C<trace>.
 All other logging will stringify the object in the normal way.
 
-Defaults to C<&Log::Any::Adapter::TAP::_default_dumper>, which (currently)
-calls Data::Dumper with a max depth of 4.  Do not depend on this default.
+Defaults to L</default_dumper>, which prints the data in "some human-readable
+format".  The default will NOT give you a pure serialization, and is subject
+to change.
 
 =cut
 
@@ -255,18 +256,23 @@ sub write_msg {
 	}
 }
 
-=head2 _default_dumper
+=head2 default_dumper
 
-  $string = _default_dumper( $perl_data );
+  $dumper= $class->default_dumper;
+  $string = $dumper->( $perl_data );
 
-This is a function which dumps a value in a human readable format.  Currently
-it uses Data::Dumper with a max depth of 4, but might change in the future.
-Do not depend on this output format; it is only for human consumption, and might
+Default value for the 'dumper' attribute.
+
+This returns a coderef which can dump a value in "some human readable format".
+Currently it uses Data::Dumper with a max depth of 4.
+Do not depend on this default; it is only for human consumption, and might
 change to a more friendly format in the future.
 
-This is the default value for the 'dumper' attribute.
-
 =cut
+
+sub default_dumper {
+	return \&_default_dumper;
+}
 
 sub _default_dumper {
 	my $val= shift;
