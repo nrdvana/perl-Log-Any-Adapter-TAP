@@ -1,4 +1,14 @@
-Version 0.1
+Version 0.2.0
+ - Trap exceptions in debugf and tracef
+ - Trapped exceptions in debug* trace* are now reported using ->warn
+ - New filter level 'all' suppresses all messages
+ - Fixed bug in filter="level+N" notation
+ - Print helpful TAP comment about available environment variables on startup
+ - Invalid filter levels no longer throw exceptions (only warn)
+ - Support for all log levels, rather than artifical cap at critical/fatal
+ - Better support for subclassing (BEGIN block broken into reusable functions)
+
+Version 0.1.0
  - Basic support for all logging methods, prefixing all output with
    the canonical name of the log level other than 'info', and writing
    each line with a comment prefix.
