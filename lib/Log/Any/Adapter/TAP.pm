@@ -154,11 +154,11 @@ Any of the log level names or level aliases defined in L<Log::Any>.
 
 =item *
 
-C<none> or C<undef>, to filters nothing (showing all logging levels).
+C<none> or C<undef>, to filter nothing (print all log levels).
 
 =item *
 
-A value of C<all>, to suppresses all logging (no messages are seen).
+A value of C<all>, to filter everything (print nothing).
 
 =back
 
@@ -294,7 +294,7 @@ For regular logging functions (i.e. C<warn>, C<info>) the arguments are
 stringified and concatenated.  Errors during stringify or printing are not
 caught.
 
-For sprintf-like logging functions (i.e. C<warnf>, C<infof>) reference
+For printf-like logging functions (i.e. C<warnf>, C<infof>) reference
 arguments are passed to C<$self-E<gt>dumper> before passing them to
 sprintf.  Errors are not caught here either.
 
