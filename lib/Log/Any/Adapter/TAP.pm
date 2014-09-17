@@ -103,18 +103,20 @@ BEGIN {
 		for keys %aliases;
 	
 	# Suppress debug and trace by default
-	$global_filter_level= $level_map{debug};
+	$global_filter_level= 'debug';
 	
 	# Apply TAP_LOG_FILTER settings
 	if ($ENV{TAP_LOG_FILTER}) {
 		for (split /,/, $ENV{TAP_LOG_FILTER}) {
 			if (index($_, '=') > -1) {
 				my ($pkg, $level)= split /=/, $_;
-				eval { $category_filter_level{$pkg}= _coerce_filter_level($level); 1; }
+				local $@;
+				eval { _coerce_filter_level($level); $category_filter_level{$pkg}= $level; 1; }
 					or warn "$@";
 			}
 			else {
-				eval { $global_filter_level= _coerce_filter_level($_); 1; }
+				local $@;
+				eval { _coerce_filter_level($_); $global_filter_level= $_; 1; }
 					or warn "$@";
 			}
 		}
@@ -187,7 +189,7 @@ to change.
 
 =cut
 
-sub dumper { $_[0]{dumper} || \&_default_dumper }
+sub dumper { $_[0]{dumper} ||= $_[0]->default_dumper }
 
 sub category { $_[0]{category} }
 
@@ -201,13 +203,19 @@ See L<Log::Any::Adapter::Base/new>.  Accepts the above attributes.
 
 sub init {
 	my $self= shift;
-	my $level= exists $self->{filter}? _coerce_filter_level($self->{filter})
-		: defined $category_filter_level{$self->{category}}? $category_filter_level{$self->{category}}
-		: $global_filter_level;
-	$level= $level_map{emergency} if $level > $level_map{emergency};
+	# Apply default dumper if not set
+	$self->{dumper} ||= $self->default_dumper;
+	# Apply default filter if not set
+	exists $self->{filter}
+		or $self->{filter}= defined $category_filter_level{$self->{category}}?
+			$category_filter_level{$self->{category}}
+			: $global_filter_level;
+	
 	# Rebless to a "level filter" package, which is a subclass of this one
 	# but with some methods replaced by empty subs.
 	# If log level is negative (trace), we show all messages, so no need to rebless.
+	my $level= _coerce_filter_level($self->filter);
+	$level= $level_map{emergency} if $level > $level_map{emergency};
 	my $pkg_id= $level+1;
 	bless $self, ref($self)."::Lev$pkg_id"
 		if $pkg_id >= 0;
