@@ -7,7 +7,7 @@ use Carp 'croak';
 require Scalar::Util;
 require Data::Dumper;
 
-our $VERSION= '0.001000';
+our $VERSION= '0.002000';
 
 # ABSTRACT: Logging adapter suitable for use in TAP testcases
 
@@ -49,12 +49,78 @@ or 2 to see the file and line number it came from, or 3 to see both.
 
 =cut
 
-our $global_filter_level;
-our $show_category;
-our $show_file_line;
-our $show_file_fullname;
-our %category_filter_level;
-our %level_map;
+our $global_filter_level;    # default for level-filtering
+our %category_filter_level;  # per-category filter levels
+our $show_category;          # whether to show logging category on each message
+our $show_file_line;         # Whether to show caller for each message
+our $show_file_fullname;     # whether to use full path for caller info
+our $show_usage;             # whether to print usage notes on initialization
+our %level_map;              # mapping from level name to numeric level
+
+sub _coerce_filter_level {
+	my $val= shift;
+	return (!defined $val || $val eq 'none')? $level_map{trace}-1
+		: exists $level_map{$val}? $level_map{$val}
+		: ($val =~ /^([A-Za-z]+)[-+]([0-9]+)$/) && defined $level_map{lc $1}? $level_map{lc $1} - $2
+		: croak "unknown log level '$val'";
+}
+
+BEGIN {
+	# Initialize globals, and use %ENV vars for defaults
+	%level_map= (
+		trace     => -1,
+		debug     =>  0,
+		info      =>  1,
+		notice    =>  2,
+		warning   =>  3,
+		error     =>  4,
+		critical  =>  5,
+		alert     =>  6,
+		emergency =>  7,
+	);
+	
+	# Make sure we have numeric levels for all the core logging methods
+	for ( Log::Any->logging_methods() ) {
+		if (!defined $level_map{$_}) {
+			# This is an attempt at being future-proof to the degree that a new level
+			# added to Log::Any won't kill a program using this logging adapter,
+			# but will emit a warning so it can be fixed properly.
+			warn __PACKAGE__." encountered unknown level '$_'";
+			$level_map{$_}= 4;
+		}
+	}
+	# Now add numeric values for all the aliases, too
+	my %aliases= Log::Any->log_level_aliases;
+	$level_map{$_} ||= $level_map{$aliases{$_}}
+		for keys %aliases;
+	
+	# Suppress debug and trace by default
+	$global_filter_level= $level_map{debug};
+	
+	# Apply TAP_LOG_FILTER settings
+	if ($ENV{TAP_LOG_FILTER}) {
+		for (split /,/, $ENV{TAP_LOG_FILTER}) {
+			if (index($_, '=') > -1) {
+				my ($pkg, $level)= split /=/, $_;
+				$category_filter_level{$pkg}= &_coerce_filter_level($level);
+			}
+			else {
+				$global_filter_level= &_coerce_filter_level($_);
+			}
+		}
+	}
+	
+	# Apply TAP_LOG_ORIGIN
+	if ($ENV{TAP_LOG_ORIGIN}) {
+		$show_category= $ENV{TAP_LOG_ORIGIN} & 1;
+		$show_file_line= $ENV{TAP_LOG_ORIGIN} & 2;
+		$show_file_fullname= $show_file_line;
+	}
+	
+	# Will show usage on first instance created, but suppress if ENV var
+	# is defined and false.
+	$show_usage= 1 unless defined $ENV{TAP_LOG_SHOW_USAGE} && !$ENV{TAP_LOG_SHOW_USAGE};
+}
 
 =head1 ATTRIBUTES
 
@@ -125,6 +191,17 @@ sub init {
 	# If log level is negative (trace), we show all messages, so no need to rebless.
 	bless $self, ref($self).'::Lev'.($self->{filter}+1)
 		if $self->{filter} >= -1;
+	
+	# As a courtesy to people running "prove -v", we show a quick usage for env
+	# vars that affect logging output.  This can be suppressed by either
+	# filtering the 'info' level, or setting env var TAP_LOG_SHOW_USAGE=0
+	if ($show_usage) {
+		$self->info("Logging via ".ref($self)."; set TAP_LOG_FILTER=none to see"
+		           ." all log levels, and TAP_LOG_ORIGIN=3 to see caller info.");
+		$show_usage= 0;
+	}
+	
+	return $self;
 }
 
 =head2 write_msg
@@ -182,118 +259,76 @@ sub _default_dumper {
 	};
 }
 
-sub _coerce_filter_level {
-	my $val= shift;
-	return (!defined $val || $val eq 'none')? $level_map{trace}-1
-		: exists $level_map{$val}? $level_map{$val}
-		: ($val =~ /^([A-Za-z]+)[-+]([0-9]+)$/) && defined $level_map{lc $1}? $level_map{lc $1} - $2
-		: croak "unknown log level '$val'";
-}
-
-BEGIN {
-	$global_filter_level= 0;
-	%level_map= (
-		trace    => -1,
-		debug    =>  0,
-		info     =>  1,
-		notice   =>  2,
-		warning  =>  3,
-		error    =>  4,
-		critical =>  5,
-		fatal    =>  5,
-	);
-
-	# create filter-level packages
-	# this is an optimization for minimal overhead of disabled log levels
-	for (0..5) {
-		no strict 'refs';
-		push @{__PACKAGE__ . "::Lev${_}::ISA"}, __PACKAGE__;
-	}
-	
-	my $prev_level= 0;
+# Programmatically generate all the info, infof, is_info ... methods
+sub _build_logging_methods {
+	my $class= shift;
+	my %seen;
 	# We implement the stock methods, but also 'fatal' because in my mind, fatal is not
 	# an alias for 'critical' and I want to see a prefix of "fatal" on messages.
-	my %seen;
-	foreach my $method ( grep { !$seen{$_}++ } Log::Any->logging_methods(), 'fatal' ) {
-		my $level= $level_map{$method};
-		if (defined $level) {
-			$prev_level= $level;
-		} else {
-			# If we get an unexpected method name, assume same numeric level as previous.
-			# I'm attempting to be future-proof, here.
-			$level= $prev_level;
-			$level_map{$method}= $prev_level;
-		}
-		my $impl= ($method ne 'debug' && $method ne 'trace')
-			# Standard logging
+	for my $method ( grep { !$seen{$_}++ } Log::Any->logging_methods(), 'fatal' ) {
+		my $impl= ($level_map{$method} >= $level_map{info})
+			# Standard logging.  Concatenate everything as a string.
 			? sub {
 				(shift)->write_msg($method, join('', map { !defined $_? '<undef>' : $_ } @_));
 			}
-			# Debug and trace logging
+			# Debug and trace logging.  For these, we trap exceptions and dump data structures
 			: sub {
 				my $self= shift;
+				local $@;
 				eval { $self->write_msg($method, join('', map { !defined $_? '<undef>' : !ref $_? $_ : $self->dumper->($_) } @_)); };
 			};
 		my $printfn=
+			# Formatted logging.  We dump data structures (because Log::Any says to)
 			sub {
 				my $self= shift;
 				$self->write_msg($method, sprintf((shift), map { !defined $_? '<undef>' : !ref $_? $_ : $self->dumper->($_) } @_));
 			};
-
+		
 		# Install methods in base package
 		no strict 'refs';
-		*{__PACKAGE__ . "::$method"}= $impl;
-		*{__PACKAGE__ . "::${method}f"}= $printfn;
-		*{__PACKAGE__ . "::is_$method"}= sub { 1 };
-		
-		# Suppress methods in all higher filtering level packages
-		foreach ($level+1 .. 5) {
-			*{__PACKAGE__ . "::Lev${_}::$method"}= sub {};
-			*{__PACKAGE__ . "::Lev${_}::${method}f"}= sub {};
-			*{__PACKAGE__ . "::Lev${_}::is_$method"}= sub { 0 }
-		}
+		*{"${class}::$method"}= $impl;
+		*{"${class}::${method}f"}= $printfn;
+		*{"${class}::is_$method"}= sub { 1 };
 	}
-
 	# Now create any alias that isn't handled
 	my %aliases= Log::Any->log_level_aliases;
 	for my $method (grep { !$seen{$_}++ } keys %aliases) {
-		my $level= $level_map{$method};
-		$level= $level_map{$method}= $level_map{$aliases{$method}}
-			unless defined $level;
-
-		# Install methods in base package
 		no strict 'refs';
-		*{__PACKAGE__ . "::$method"}=    *{__PACKAGE__ . "::$aliases{$method}"};
-		*{__PACKAGE__ . "::${method}f"}= *{__PACKAGE__ . "::$aliases{$method}f"};
-		*{__PACKAGE__ . "::is_$method"}= *{__PACKAGE__ . "::is_$aliases{$method}"};
+		*{"${class}::$method"}=    *{"${class}::$aliases{$method}"};
+		*{"${class}::${method}f"}= *{"${class}::$aliases{$method}f"};
+		*{"${class}::is_$method"}= *{"${class}::is_$aliases{$method}"};
+	}
+}
 
+# Create per-filter-level packages
+# This is an optimization for minimizing overhead when using disabled levels
+sub _build_filtered_subclasses {
+	my $class= shift;
+	my $max_level= 0;
+	$_ > $max_level and $max_level= $_
+		for values %level_map;
+	
+	# Create packages, inheriting from $class
+	for (0..$max_level) {
+		no strict 'refs';
+		push @{"${class}::Lev${_}::ISA"}, $class;
+	}
+	# For each method, mask it in any package of a higher filtering level
+	for my $method (keys %level_map) {
+		my $level= $level_map{$method};
 		# Suppress methods in all higher filtering level packages
-		foreach ($level+1 .. 5) {
-			*{__PACKAGE__ . "::Lev${_}::$method"}= sub {};
-			*{__PACKAGE__ . "::Lev${_}::${method}f"}= sub {};
-			*{__PACKAGE__ . "::Lev${_}::is_$method"}= sub { 0 }
+		for ($level+1 .. $max_level) {
+			no strict 'refs';
+			*{"${class}::Lev${_}::$method"}= sub {};
+			*{"${class}::Lev${_}::${method}f"}= sub {};
+			*{"${class}::Lev${_}::is_$method"}= sub { 0 }
 		}
 	}
-	
-	# Apply TAP_LOG_FILTER settings
-	if ($ENV{TAP_LOG_FILTER}) {
-		for (split /,/, $ENV{TAP_LOG_FILTER}) {
-			if (index($_, '=') > -1) {
-				my ($pkg, $level)= split /=/, $_;
-				$category_filter_level{$pkg}= &_coerce_filter_level($level);
-			}
-			else {
-				$global_filter_level= &_coerce_filter_level($_);
-			}
-		}
-	}
-	
-	# Apply TAP_LOG_ORIGIN
-	if ($ENV{TAP_LOG_ORIGIN}) {
-		$show_category= $ENV{TAP_LOG_ORIGIN} & 1;
-		$show_file_line= $ENV{TAP_LOG_ORIGIN} & 2;
-		$show_file_fullname= $show_file_line;
-	}
+}
+
+BEGIN {
+	__PACKAGE__->_build_logging_methods;
+	__PACKAGE__->_build_filtered_subclasses;
 }
 
 1;
