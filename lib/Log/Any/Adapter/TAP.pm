@@ -28,7 +28,9 @@ part of your TAP stream.
 By default, C<debug> and C<trace> are suppressed, but you can enable
 them with C<TAP_LOG_FILTER>.  See below.
 
-=head1 ENV{TAP_LOG_FILTER}
+=head1 ENVIRONMENT
+
+=head2 ENV{TAP_LOG_FILTER}
 
 Specify the lowest log level which should be suppressed.  The default is
 C<debug>, which suppresses C<debug> and C<trace> messages.
@@ -42,10 +44,17 @@ The filter level may end with a "+N" or "-N" indicating an offset from
 the named level, so C<debug-1> is equivalent to C<trace> and C<debug+1>
 is equivalent to C<info>.
 
-=head1 ENV{TAP_LOG_ORIGIN}
+=head2 ENV{TAP_LOG_ORIGIN}
 
 Set this variable to 1 to show which category the message came from,
 or 2 to see the file and line number it came from, or 3 to see both.
+
+=head2 ENV{TAP_LOG_SHOW_USAGE}
+
+Defaults to true, which prints a #note on stdout describing these
+environment variables when Log::Any::Adapter::TAP is first loaded.
+
+Set TAP_LOG_SHOW_USAGE=0 to suppress this message.
 
 =cut
 
