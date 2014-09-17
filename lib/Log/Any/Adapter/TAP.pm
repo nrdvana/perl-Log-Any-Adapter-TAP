@@ -26,33 +26,31 @@ at the start of your testcase, and now you have your logging output as
 part of your TAP stream.
 
 By default, C<debug> and C<trace> are suppressed, but you can enable
-them with C<TAP_LOG_FILTER>.  See below.
+them with L</TAP_LOG_FILTER>.  See below.
 
 =head1 ENVIRONMENT
 
-=head2 ENV{TAP_LOG_FILTER}
+=head2 TAP_LOG_FILTER
 
-Specify the lowest log level which should be suppressed.  The default is
-C<debug>, which suppresses C<debug> and C<trace> messages.
-A value of "none" enables all logging levels.
+Specify the default filter value.  See attribute L</filter> for details.
 
-If you want to affect specific logging categories use a notation like
+You may also specify defaults per-category, using this syntax:
+
+  $default_level,$package_1=$level,...,$package_n=$level
+
+So, for example:
 
   TAP_LOG_FILTER=trace,MyPackage=none,NoisyPackage=warn prove -lv
 
-The filter level may end with a "+N" or "-N" indicating an offset from
-the named level, so C<debug-1> is equivalent to C<trace> and C<debug+1>
-is equivalent to C<info>.
-
-=head2 ENV{TAP_LOG_ORIGIN}
+=head2 TAP_LOG_ORIGIN
 
 Set this variable to 1 to show which category the message came from,
 or 2 to see the file and line number it came from, or 3 to see both.
 
-=head2 ENV{TAP_LOG_SHOW_USAGE}
+=head2 TAP_LOG_SHOW_USAGE
 
-Defaults to true, which prints a #note on stdout describing these
-environment variables when Log::Any::Adapter::TAP is first loaded.
+Defaults to true, which prints a TAP comment briefing the user about
+these environment variables when Log::Any::Adapter::TAP is first loaded.
 
 Set TAP_LOG_SHOW_USAGE=0 to suppress this message.
 
@@ -141,30 +139,34 @@ BEGIN {
   use Log::Any::Adapter 'TAP', filter => 'info';
   use Log::Any::Adapter 'TAP', filter => 'debug+3';
 
-Messages equal to or less than the level of filter are suppressed.
+Messages with a log level equal to or less than the filter are suppressed.
 
-The default filter is 'debug', meaning C<debug> and C<trace> are suppressed.
+Defaults to L</TAP_LOG_FILTER> which defaults to C<debug>, which
+suppresses C<debug> and C<trace> messages.
 
-filter may be:
+Filter may be:
 
-=over 5
-
-=item *
-
-a level name like 'info', 'debug', etc, or a level alias as documented
-in Log::Any.
+=over
 
 =item *
 
-undef, or the string 'none', which do not suppress anything
+Any of the log level names or level aliases defined in L<Log::Any>.
 
 =item *
 
-a level name with a numeric offset, where a number will be added or
-subtracted from the log level.  Larger numbers are for more important
-levels, so C<debug+1> is equivalent to C<info>
+C<none> or C<undef>, to filters nothing (showing all logging levels).
+
+=item *
+
+A value of C<all>, to suppresses all logging (no messages are seen).
 
 =back
+
+The filter level may end with a C<+N> or C<-N> indicating an offset from
+the named level.  The numeric values increase with importance of the message,
+so C<debug-1> is equivalent to C<trace> and C<debug+1> is equivalent to C<info>.
+This differs from syslog, where increasing numbers are less important.
+(why did they choose that??)
 
 =cut
 
@@ -175,9 +177,12 @@ sub filter { $_[0]{filter} }
   use Log::Any::Adapter 'TAP', dumper => sub { my $val=shift; ... };
 
 Use a custom dumper function for converting perl data to strings.
-The dumper is only used for the "*f()" formatting functions, and for log
-levels 'debug' and 'trace'.  All normal logging will stringify the object
-in the normal way.
+The dumper is only used for the C<${level}f(...)> formatting functions,
+and for log levels C<debug> and C<trace>.
+All other logging will stringify the object in the normal way.
+
+Defaults to C<&Log::Any::Adapter::TAP::_default_dumper>, which (currently)
+calls Data::Dumper with a max depth of 4.  Do not depend on this default.
 
 =cut
 
@@ -256,6 +261,8 @@ sub write_msg {
 
 This is a function which dumps a value in a human readable format.  Currently
 it uses Data::Dumper with a max depth of 4, but might change in the future.
+Do not depend on this output format; it is only for human consumption, and might
+change to a more friendly format in the future.
 
 This is the default value for the 'dumper' attribute.
 
@@ -272,6 +279,25 @@ sub _default_dumper {
 		"<exception $x>";
 	};
 }
+
+=head1 LOGGING_METHODS
+
+This module has all the standard L<Log::Any> methods.
+
+For regular logging functions (i.e. C<warn>, C<info>) the arguments are
+stringified and concatenated.  Errors during stringify or printing are not
+caught.
+
+For sprintf-like logging functions (i.e. C<warnf>, C<infof>) reference
+arguments are passed to C<$self-E<gt>dumper> before passing them to
+sprintf.  Errors are not caught here either.
+
+For any log level below C<info>, errors ARE caught with an C<eval> and printed
+as a warning.
+This is to prevent sloppy debugging code from ever crashing a production system.
+Also, references are passed to C<$self-E<gt>dumper> even for the regular methods.
+
+=cut
 
 # Programmatically generate all the info, infof, is_info ... methods
 sub _build_logging_methods {
