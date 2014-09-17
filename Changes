@@ -7,6 +7,7 @@ Version 0.2.0
  - Invalid filter levels no longer throw exceptions (only warn)
  - Support for all log levels, rather than artifical cap at critical/fatal
  - Better support for subclassing (BEGIN block broken into reusable functions)
+ - Publish default_dumper method instead of the _default_dumper function
 
 Version 0.1.0
  - Basic support for all logging methods, prefixing all output with

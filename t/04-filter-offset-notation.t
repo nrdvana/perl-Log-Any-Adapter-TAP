@@ -7,15 +7,7 @@ use Log::Any '$log';
 
 $SIG{__DIE__}= $SIG{__WARN__}= sub { diag @_; };
 
-note "default filter level";
-
-subtest initialization => sub {
-	my @warnings;
-	local $SIG{__WARN__}= sub { push @warnings, $_[0] };
-	use_ok( 'Log::Any::Adapter', 'TAP' ) || BAIL_OUT;
-	is( scalar @warnings, 0, "No warnings" )
-		or do { diag("got warning: $_") for @warnings };
-};
+use_ok( 'Log::Any::Adapter', 'TAP' ) or die;
 
 my $buf;
 
