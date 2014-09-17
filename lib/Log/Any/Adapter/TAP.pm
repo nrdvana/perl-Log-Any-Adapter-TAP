@@ -280,24 +280,33 @@ sub _build_logging_methods {
 	# We implement the stock methods, but also 'fatal' because in my mind, fatal is not
 	# an alias for 'critical' and I want to see a prefix of "fatal" on messages.
 	for my $method ( grep { !$seen{$_}++ } Log::Any->logging_methods(), 'fatal' ) {
-		my $impl= ($level_map{$method} >= $level_map{info})
+		my ($impl, $printfn);
+		if ($level_map{$method} >= $level_map{info}) {
 			# Standard logging.  Concatenate everything as a string.
-			? sub {
+			$impl= sub {
 				(shift)->write_msg($method, join('', map { !defined $_? '<undef>' : $_ } @_));
-			}
-			# Debug and trace logging.  For these, we trap exceptions and dump data structures
-			: sub {
-				my $self= shift;
-				local $@;
-				eval { $self->write_msg($method, join('', map { !defined $_? '<undef>' : !ref $_? $_ : $self->dumper->($_) } @_)); };
 			};
-		my $printfn=
 			# Formatted logging.  We dump data structures (because Log::Any says to)
-			sub {
+			$printfn= sub {
 				my $self= shift;
 				$self->write_msg($method, sprintf((shift), map { !defined $_? '<undef>' : !ref $_? $_ : $self->dumper->($_) } @_));
 			};
-		
+		} else {
+			# Debug and trace logging.  For these, we trap exceptions and dump data structures
+			$impl= sub {
+				my $self= shift;
+				local $@;
+				eval { $self->write_msg($method, join('', map { !defined $_? '<undef>' : !ref $_? $_ : $self->dumper->($_) } @_)); 1 }
+					or $self->warn("$@");
+			};
+			$printfn= sub {
+				my $self= shift;
+				local $@;
+				eval { $self->write_msg($method, sprintf((shift), map { !defined $_? '<undef>' : !ref $_? $_ : $self->dumper->($_) } @_)); 1; }
+					or $self->warn("$@");
+			};
+		}
+			
 		# Install methods in base package
 		no strict 'refs';
 		*{"${class}::$method"}= $impl;
