@@ -26,7 +26,7 @@ at the start of your testcase, and now you have your logging output as
 part of your TAP stream.
 
 By default, C<debug> and C<trace> are suppressed, but you can enable
-them with L</TAP_LOG_FILTER>.  See below.
+them with L</TAP_LOG_FILTER> or the L</filter> attribute.  See below.
 
 =head1 ENVIRONMENT
 
@@ -141,7 +141,7 @@ BEGIN {
 
 Messages with a log level equal to or less than the filter are suppressed.
 
-Defaults to L</TAP_LOG_FILTER> which defaults to C<debug>, which
+Defaults to L</TAP_LOG_FILTER>, or C<debug> which
 suppresses C<debug> and C<trace> messages.
 
 Filter may be:
@@ -280,9 +280,9 @@ sub _default_dumper {
 	};
 }
 
-=head1 LOGGING_METHODS
+=head1 LOGGING METHODS
 
-This module has all the standard L<Log::Any> methods.
+This module has all the standard logging methods from L<Log::Any/LOG LEVELS>.
 
 For regular logging functions (i.e. C<warn>, C<info>) the arguments are
 stringified and concatenated.  Errors during stringify or printing are not
