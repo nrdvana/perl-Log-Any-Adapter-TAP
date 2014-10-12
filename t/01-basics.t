@@ -4,6 +4,9 @@ use strict;
 use warnings;
 use Test::More;
 use Log::Any '$log';
+use FindBin;
+use lib "$FindBin::Bin/lib";
+use TestLogging;
 
 $SIG{__DIE__}= $SIG{__WARN__}= sub { diag @_; };
 
@@ -19,107 +22,81 @@ subtest initialization => sub {
 
 my $buf;
 
-sub test_log_method {
-	my ($method, $message, $stdout_pattern, $stderr_pattern)= @_;
-	my ($stdout, $stderr)= ('', '');
-	{
-		local *STDOUT;
-		local *STDERR;
-		open STDOUT, '>', \$stdout or die "Can't redirect stdout to a memory buffer: $!";
-		open STDERR, '>', \$stderr or die "Can't redirect stderr to a memory buffer: $!";
-		$log->$method($message);
-		close STDOUT;
-		close STDERR;
-	}
-	if (ref $stdout_pattern) {
-		like( $stdout, $stdout_pattern, "result of $method($message) stdout" );
-	} else {
-		is( $stdout, $stdout_pattern, "result of $method($message) stdout" );
-	}
-	if (ref $stderr_pattern) {
-		like( $stderr, $stderr_pattern, "result of $method($message) stderr" );
-	} else {
-		is( $stderr, $stderr_pattern, "result of $method($message) stderr" );
-	}
-}
+subtest 'Default filter level' => sub {
+	test_log_method($log, @$_) for (
+		# method, message, pattern
+		[ 'fatal',   'test-fatal',   '', qr/\s*# fatal: test-fatal\n/ ],
+		[ 'error',   'test-error',   '', qr/\s*# error: test-error\n/ ],
+		[ 'warning', 'test-warning', '', qr/\s*# warning: test-warning\n/ ],
+		[ 'notice',  'test-notice',  qr/\s*# notice: test-notice\n/, '' ],
+		[ 'info',    'test-info',    qr/\s*# test-info\n/, '' ],
+		[ 'debug',   'test-debug',   '', '' ],
+		[ 'trace',   'test-trace',   '', '' ],
+		[ 'info',    "line 1\nline 2",   qr/\s*# line 1\n\s*#\s+line 2\n/, '' ],
+		[ 'info',    "line 1\nline 2\n", qr/\s*# line 1\n\s*#\s+line 2\n/, '' ],
+	);
+};
 
-my @tests= (
-	# method, message, pattern
-	[ 'fatal',   'test-fatal',   '', "# fatal: test-fatal\n" ],
-	[ 'error',   'test-error',   '', "# error: test-error\n" ],
-	[ 'warning', 'test-warning', '', "# warning: test-warning\n" ],
-	[ 'notice',  'test-notice',  "# notice: test-notice\n", '' ],
-	[ 'info',    'test-info',    "# test-info\n", '' ],
-	[ 'debug',   'test-debug',   '', '' ],
-	[ 'trace',   'test-trace',   '', '' ],
-	[ 'info',    "line 1\nline 2", "# line 1\n#   line 2\n", '' ],
-	[ 'info',    "line 1\nline 2\n", "# line 1\n#   line 2\n", '' ],
-);
-test_log_method(@$_) for @tests;
+subtest "filter level 'error'" => sub {
+	Log::Any::Adapter->set('TAP', filter => 'error');
 
-note "filter level 'error'";
-Log::Any::Adapter->set('TAP', filter => 'error');
+	test_log_method($log, @$_) for (
+		# method, message, pattern
+		[ 'fatal',   'test-fatal',   '', qr/\s*# fatal: test-fatal\n/ ],
+		[ 'error',   'test-error',   '', '' ],
+		[ 'warning', 'test-warning', '', '' ],
+		[ 'notice',  'test-notice',  '', '' ],
+		[ 'info',    'test-info',    '', '' ],
+		[ 'debug',   'test-debug',   '', '' ],
+		[ 'trace',   'test-trace',   '', '' ],
+	);
+};
 
-@tests= (
-	# method, message, pattern
-	[ 'fatal',   'test-fatal',   '', "# fatal: test-fatal\n" ],
-	[ 'error',   'test-error',   '', '' ],
-	[ 'warning', 'test-warning', '', '' ],
-	[ 'notice',  'test-notice',  '', '' ],
-	[ 'info',    'test-info',    '', '' ],
-	[ 'debug',   'test-debug',   '', '' ],
-	[ 'trace',   'test-trace',   '', '' ],
-);
-test_log_method(@$_) for @tests;
+subtest "filter level 'trace'" => sub {
+	Log::Any::Adapter->set('TAP', filter => 'trace');
 
-note "filter level 'trace'";
-Log::Any::Adapter->set('TAP', filter => 'trace');
+	test_log_method($log, @$_) for (
+		# method, message, pattern
+		[ 'fatal',   'test-fatal',   '', qr/\s*# fatal: test-fatal\n/ ],
+		[ 'error',   'test-error',   '', qr/\s*# error: test-error\n/ ],
+		[ 'warning', 'test-warning', '', qr/\s*# warning: test-warning\n/ ],
+		[ 'notice',  'test-notice',  qr/\s*# notice: test-notice\n/, '' ],
+		[ 'info',    'test-info',    qr/\s*# test-info\n/, '' ],
+		[ 'debug',   'test-debug',   qr/\s*# debug: test-debug\n/, '' ],
+		[ 'trace',   'test-trace',   '', '' ],
+	);
+};
 
-@tests= (
-	# method, message, pattern
-	[ 'fatal',   'test-fatal',   '', "# fatal: test-fatal\n" ],
-	[ 'error',   'test-error',   '', "# error: test-error\n" ],
-	[ 'warning', 'test-warning', '', "# warning: test-warning\n" ],
-	[ 'notice',  'test-notice',  "# notice: test-notice\n", '' ],
-	[ 'info',    'test-info',    "# test-info\n", '' ],
-	[ 'debug',   'test-debug',   "# debug: test-debug\n", '' ],
-	[ 'trace',   'test-trace',   '', '' ],
-);
-test_log_method(@$_) for @tests;
+subtest "filter level 'none'" => sub {
+	Log::Any::Adapter->set('TAP', filter => 'none');
+	
+	test_log_method($log, @$_) for (
+		# method, message, pattern
+		[ 'fatal',   'test-fatal',   '', qr/\s*# fatal: test-fatal\n/ ],
+		[ 'error',   'test-error',   '', qr/\s*# error: test-error\n/ ],
+		[ 'warning', 'test-warning', '', qr/\s*# warning: test-warning\n/ ],
+		[ 'notice',  'test-notice',  qr/# notice: test-notice\n/, '' ],
+		[ 'info',    'test-info',    qr/# test-info\n/, '' ],
+		[ 'debug',   'test-debug',   qr/# debug: test-debug\n/, '' ],
+		[ 'trace',   'test-trace',   qr/# trace: test-trace\n/, '' ],
+	);
+};
 
-note "filter level 'none'";
-Log::Any::Adapter->set('TAP', filter => 'none');
-@tests= (
-	# method, message, pattern
-	[ 'fatal',   'test-fatal',   '', "# fatal: test-fatal\n" ],
-	[ 'error',   'test-error',   '', "# error: test-error\n" ],
-	[ 'warning', 'test-warning', '', "# warning: test-warning\n" ],
-	[ 'notice',  'test-notice',  "# notice: test-notice\n", '' ],
-	[ 'info',    'test-info',    "# test-info\n", '' ],
-	[ 'debug',   'test-debug',   "# debug: test-debug\n", '' ],
-	[ 'trace',   'test-trace',   "# trace: test-trace\n", '' ],
-);
-test_log_method(@$_) for @tests;
-
-note "filter level <undef>";
-Log::Any::Adapter->set('TAP', filter => undef);
-
-test_log_method(@$_) for @tests;
-
-note "filter level 'all'";
-Log::Any::Adapter->set('TAP', filter => 'all');
-@tests= (
-	# method, message, pattern
-	[ 'emergency', 'test-emerg',   '', '' ],
-	[ 'critical',  'test-crit',    '', '' ],
-	[ 'fatal',     'test-fatal',   '', '' ],
-	[ 'error',     'test-error',   '', '' ],
-	[ 'warning',   'test-warning', '', '' ],
-	[ 'notice',    'test-notice',  '', '' ],
-	[ 'info',      'test-info',    '', '' ],
-	[ 'debug',     'test-debug',   '', '' ],
-	[ 'trace',     'test-trace',   '', '' ],
-);
-test_log_method(@$_) for @tests;
+subtest "filter level 'all'" => sub {
+	Log::Any::Adapter->set('TAP', filter => 'all');
+	
+	test_log_method($log, @$_) for (
+		# method, message, pattern
+		[ 'emergency', 'test-emerg',   '', '' ],
+		[ 'critical',  'test-crit',    '', '' ],
+		[ 'fatal',     'test-fatal',   '', '' ],
+		[ 'error',     'test-error',   '', '' ],
+		[ 'warning',   'test-warning', '', '' ],
+		[ 'notice',    'test-notice',  '', '' ],
+		[ 'info',      'test-info',    '', '' ],
+		[ 'debug',     'test-debug',   '', '' ],
+		[ 'trace',     'test-trace',   '', '' ],
+	);
+};
 
 done_testing;
