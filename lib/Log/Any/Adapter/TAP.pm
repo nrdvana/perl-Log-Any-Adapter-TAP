@@ -179,18 +179,14 @@ This differs from syslog, where increasing numbers are less important.
 
 sub filter { $_[0]{filter} }
 
-=head2 dumper
+=head2 dumper (DEPRECATED, unusable in Log::Any >= 0.9)
 
   use Log::Any::Adapter 'TAP', dumper => sub { my $val=shift; ... };
 
-Use a custom dumper function for converting perl data to strings.
-The dumper is only used for the C<${level}f(...)> formatting functions,
-and for log levels C<debug> and C<trace>.
-All other logging will stringify the object in the normal way.
-
-Defaults to L</default_dumper>, which prints the data in "some human-readable
-format".  The default will NOT give you a pure serialization, and is subject
-to change.
+This feature lets you use a custom dumper in the printf-style logging
+functions.  However, these are no longer handled by the adapter in
+new versions of Log::Any, so you need to use a custom Proxy class in
+your log-producing module.
 
 =cut
 
@@ -206,8 +202,10 @@ See L<Log::Any::Adapter::Base/new>.  Accepts the above attributes.
 
 =cut
 
+our $_showed_dumper_warning;
 sub init {
 	my $self= shift;
+	my $custom_dumper= $self->{dumper};
 	# Apply default dumper if not set
 	$self->{dumper} ||= $self->default_dumper;
 	# Apply default filter if not set
@@ -232,6 +230,10 @@ sub init {
 		$self->info("Logging via ".ref($self)."; set TAP_LOG_FILTER=none to see"
 		           ." all log levels, and TAP_LOG_ORIGIN=3 to see caller info.");
 		$show_usage= 0;
+	}
+	if ($custom_dumper && !$_showed_dumper_warning) {
+		$self->notice("Custom 'dumper' will not work with Log::Any versions >= 0.9");
+		$_showed_dumper_warning= 1;
 	}
 	
 	return $self;
@@ -322,6 +324,15 @@ sub _default_dumper {
 =head1 LOGGING METHODS
 
 This module has all the standard logging methods from L<Log::Any/LOG LEVELS>.
+
+Note that the regular logging methods are only specified to take a single string.
+This module in the past supported passing objects as additional parameters, and
+having them stringified with a custom dumper, caatching exceptions thrown during
+stringification.  With the new Log::Any design, these things are decided in the
+producing module, so these features are no longer possible.
+
+If this module does receive multiple arguments or have its printf-formatting
+methods called, it does the following:
 
 For regular logging functions (i.e. C<warn>, C<info>) the arguments are
 stringified and concatenated.  Errors during stringify or printing are not
