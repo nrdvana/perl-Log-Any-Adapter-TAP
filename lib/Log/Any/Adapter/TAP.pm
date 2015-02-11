@@ -2,6 +2,7 @@ package Log::Any::Adapter::TAP;
 use strict;
 use warnings;
 use parent 'Log::Any::Adapter::Base';
+use Log::Any ();
 use Try::Tiny;
 use Carp 'croak';
 require Scalar::Util;
@@ -56,26 +57,11 @@ Set TAP_LOG_SHOW_USAGE=0 to suppress this message.
 
 =cut
 
-our $global_filter_level;    # default for level-filtering
-our %category_filter_level;  # per-category filter levels
-our $show_category;          # whether to show logging category on each message
-our $show_file_line;         # Whether to show caller for each message
-our $show_file_fullname;     # whether to use full path for caller info
-our $show_usage;             # whether to print usage notes on initialization
 our %level_map;              # mapping from level name to numeric level
-
-sub _coerce_filter_level {
-	my $val= shift;
-	return (!defined $val || $val eq 'none')? $level_map{trace}-1
-		: ($val eq 'all')? $level_map{emergency}
-		: exists $level_map{$val}? $level_map{$val}
-		: ($val =~ /^([A-Za-z]+)([-+][0-9]+)$/) && defined $level_map{lc $1}? $level_map{lc $1} + $2
-		: croak "unknown log level '$val'";
-}
-
 BEGIN {
 	# Initialize globals, and use %ENV vars for defaults
 	%level_map= (
+        min       => -1,
 		trace     => -1,
 		debug     =>  0,
 		info      =>  1,
@@ -85,8 +71,8 @@ BEGIN {
 		critical  =>  5,
 		alert     =>  6,
 		emergency =>  7,
+        max       =>  7,
 	);
-	
 	# Make sure we have numeric levels for all the core logging methods
 	for ( Log::Any->logging_methods() ) {
 		if (!defined $level_map{$_}) {
@@ -101,7 +87,26 @@ BEGIN {
 	my %aliases= Log::Any->log_level_aliases;
 	$level_map{$_} ||= $level_map{$aliases{$_}}
 		for keys %aliases;
-	
+}
+
+sub _log_level_value { $level_map{$_[1]} }
+
+sub _coerce_filter_level {
+	my $val= shift;
+	return (!defined $val || $val eq 'none')? $level_map{trace}-1
+		: ($val eq 'all')? $level_map{emergency}
+		: exists $level_map{$val}? $level_map{$val}
+		: ($val =~ /^([A-Za-z]+)([-+][0-9]+)$/) && defined $level_map{lc $1}? $level_map{lc $1} + $2
+		: croak "unknown log level '$val'";
+}
+
+our $global_filter_level;    # default for level-filtering
+our %category_filter_level;  # per-category filter levels
+our $show_category;          # whether to show logging category on each message
+our $show_file_line;         # Whether to show caller for each message
+our $show_file_fullname;     # whether to use full path for caller info
+our $show_usage;             # whether to print usage notes on initialization
+BEGIN {
 	# Suppress debug and trace by default
 	$global_filter_level= 'debug';
 	
@@ -242,25 +247,45 @@ differently, or write to different file handles.
 
 =cut
 
+my %_tap_method;
 sub write_msg {
 	my ($self, $level_name, $str)= @_;
+	
 	chomp $str;
-	$str =~ s/\n/\n#   /sg;
+	$str= "$level_name: $str" unless $level_name eq 'info';
+	
 	if ($show_category) {
 		$str .= ' (' . $self->category . ')';
 	}
+	
 	if ($show_file_line) {
 		my $i= 0;
-		++$i while caller($i) =~ '^Log::Any';
+		++$i while caller($i) =~ /^Log::Any(:|$)/;
 		my (undef, $file, $line)= caller($i);
 		$file =~ s|.*/lib/||
 			unless $show_file_fullname;
 		$str .= ' (' . $file . ':' . $line . ')';
 	}
-	if ($level_map{$level_name} >= $level_map{warning}) {
-		print STDERR ($level_name eq 'info'? '# ' : "# $level_name: "), $str, "\n";
-	} else {
-		print STDOUT ($level_name eq 'info'? '# ' : "# $level_name: "), $str, "\n";
+
+	# Was going to cache more of this, but logger might load before Test::More,
+	# so better to keep testing it each time.  At least cache which method name we're using.
+	my $name= ($_tap_method{$level_name} ||=
+		($self->_log_level_value($level_name) >= $self->_log_level_value('warning')?
+			'diag':'note'));
+	my $m;
+	if ($m= main->can($name)) {
+		$m->($str);
+	}
+	elsif (Test::Builder->can('new')) {
+		Test::Builder->new->$name($str);
+	}
+	else {
+		$str =~ s/\n/\n#   /sg;
+		if ($name eq 'diag') {
+			print STDERR "# $str\n";
+		} else {
+			print STDOUT "# $str\n";
+		}
 	}
 }
 

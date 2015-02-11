@@ -5,6 +5,9 @@ use warnings;
 use Test::More;
 use Try::Tiny;
 use Log::Any '$log';
+use FindBin;
+use lib "$FindBin::Bin/lib";
+use TestLogging;
 
 my @warnings;
 local $SIG{__WARN__}= sub { push @warnings, @_ };
