@@ -2,10 +2,9 @@ package Log::Any::Adapter::TAP;
 use strict;
 use warnings;
 use parent 'Log::Any::Adapter::Filtered';
-use Try::Tiny;
-use Carp 'croak';
-require Scalar::Util;
-require Data::Dumper;
+use Carp ();
+use Scalar::Util ();
+use Data::Dumper ();
 
 our $VERSION= '0.002000';
 
