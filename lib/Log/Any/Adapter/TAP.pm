@@ -414,9 +414,21 @@ sub _build_filtered_subclasses {
 	}
 }
 
+our $_called_as_fatal;
 BEGIN {
 	__PACKAGE__->_build_logging_methods;
 	__PACKAGE__->_build_filtered_subclasses;
+	
+	if ($Log::Any::VERSION >= 0.9 && $Log::Any::VERSION <= 1.03) {
+		# Log::Any broke the adapter contract a bit during these releases.
+		# This is an ugly hack to preserve the function of this module.
+		require Log::Any::Proxy;
+		no warnings 'redefine';
+		my $fatal= Log::Any::Proxy->can('fatal');
+		*Log::Any::Proxy::fatal= sub { local $_called_as_fatal= 1; $fatal->(@_) };
+		my $crit= \&critical;
+		*critical= sub { $_called_as_fatal? fatal(@_) : $crit->(@_) };
+	}
 }
 
 1;
