@@ -4,10 +4,11 @@ use warnings;
 use Test::More;
 use Try::Tiny;
 use Exporter 'import';
-our @EXPORT= qw( test_log_method );
+our @EXPORT= qw( capture_output test_log_method );
 
-sub test_log_method {
-	my ($log, $method, $message, $stdout_pattern, $stderr_pattern)= @_;
+# my ($stdout, $stderr)= capture_output( \&coderef )
+sub capture_output(&) {
+	my $code= shift;
 	my ($stdout, $stderr)= ('', '');
 	my $tb= Test::Builder->new if Test::Builder->can('new');
 	my ($out, $fout);
@@ -24,13 +25,19 @@ sub test_log_method {
 		$tb->output(\*STDOUT) if $tb;
 		$tb->failure_output(\*STDERR) if $tb;
 		
-		# Now actually call the method
-		$log->$method($message);
+		# Now run the code
+		$code->();
 	} finally {
 		# restore handles
 		$tb->output($out) if $tb;
 		$tb->failure_output($fout) if $tb;
 	};
+	return ($stdout, $stderr);
+}
+
+sub test_log_method {
+	my ($log, $method, $message, $stdout_pattern, $stderr_pattern)= @_;
+	my ($stdout, $stderr)= capture_output { $log->$method($message) };
 	if (ref $stdout_pattern) {
 		like( $stdout, $stdout_pattern, "result of $method($message) stdout" );
 	} else {

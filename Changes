@@ -1,3 +1,11 @@
+Version 0.3.0
+ - Tap into Test::Builder methods to deliver diag() and note() through
+   their usual path.  (fixes indenting for subtests)  Falls back to
+   generating TAP strings if Test::Builder is not loaded.
+ - Fix for 'fatal' not printing the right prefix with Log::Any >= 0.9
+ - Deprecated 'dumper' attribute since it can't be supported on
+   Log::Any >= 0.9
+
 Version 0.2.0
  - Trap exceptions in debugf and tracef
  - Trapped exceptions in debug* trace* are now reported using ->warn

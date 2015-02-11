@@ -8,7 +8,7 @@ use Carp 'croak';
 require Scalar::Util;
 require Data::Dumper;
 
-our $VERSION= '0.002000';
+our $VERSION= '0.003000';
 
 # ABSTRACT: Logging adapter suitable for use in TAP testcases
 
@@ -202,7 +202,7 @@ See L<Log::Any::Adapter::Base/new>.  Accepts the above attributes.
 
 =cut
 
-our $_showed_dumper_warning;
+our $_show_dumper_warning= 1;
 sub init {
 	my $self= shift;
 	my $custom_dumper= $self->{dumper};
@@ -231,9 +231,9 @@ sub init {
 		           ." all log levels, and TAP_LOG_ORIGIN=3 to see caller info.");
 		$show_usage= 0;
 	}
-	if ($custom_dumper && !$_showed_dumper_warning) {
+	if ($custom_dumper && $_show_dumper_warning) {
 		$self->notice("Custom 'dumper' will not work with Log::Any versions >= 0.9");
-		$_showed_dumper_warning= 1;
+		$_show_dumper_warning= 0;
 	}
 	
 	return $self;
