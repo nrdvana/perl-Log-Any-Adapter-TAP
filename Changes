@@ -1,4 +1,4 @@
-Version 0.3.0
+Version 0.003
  - Tap into Test::Builder methods to deliver diag() and note() through
    their usual path.  (fixes indenting for subtests)  Falls back to
    generating TAP strings if Test::Builder is not loaded.
@@ -6,7 +6,7 @@ Version 0.3.0
  - Deprecated 'dumper' attribute since it can't be supported on
    Log::Any >= 0.9
 
-Version 0.2.0
+Version 0.002
  - Trap exceptions in debugf and tracef
  - Trapped exceptions in debug* trace* are now reported using ->warn
  - New filter level 'all' suppresses all messages
@@ -20,7 +20,7 @@ Version 0.2.0
  - Better support for subclassing (BEGIN block broken into reusable functions)
  - Publish default_dumper method instead of the _default_dumper function
 
-Version 0.1.0
+Version 0.001
  - Basic support for all logging methods, prefixing all output with
    the canonical name of the log level other than 'info', and writing
    each line with a comment prefix.
