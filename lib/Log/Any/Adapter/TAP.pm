@@ -8,7 +8,7 @@ use Carp 'croak';
 require Scalar::Util;
 require Data::Dumper;
 
-our $VERSION= '0.003000';
+our $VERSION= '0.003001';
 
 # ABSTRACT: Logging adapter suitable for use in TAP testcases
 
@@ -430,7 +430,7 @@ BEGIN {
 	__PACKAGE__->_build_logging_methods;
 	__PACKAGE__->_build_filtered_subclasses;
 	
-	if ($Log::Any::VERSION >= 0.9 && $Log::Any::VERSION <= 1.03) {
+	if ($Log::Any::VERSION >= 0.9 && $Log::Any::VERSION <= 1.032) {
 		# Log::Any broke the adapter contract a bit during these releases.
 		# This is an ugly hack to preserve the function of this module.
 		require Log::Any::Proxy;

@@ -1,3 +1,7 @@
+Version 0.003001
+ - Extended 'fatal' workaround to apply to Log::Any version 1.032,
+   which is still broken.
+
 Version 0.003
  - Tap into Test::Builder methods to deliver diag() and note() through
    their usual path.  (fixes indenting for subtests)  Falls back to
